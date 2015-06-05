@@ -1,0 +1,16 @@
+{
+    "QUEUES": {
+        "my_queue_name": {
+            "SERVER_URL": "http://158.170.35.124:4569",
+            "DJANGO_AUTH": {
+                "username": "lms",
+                "password": "password"
+            },
+            "BASIC_AUTH": {
+                "username": "edx",
+                "password": "edx"
+            },
+            "REQUEST_TIMEOUT": 60
+        }
+    }
+}
