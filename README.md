@@ -20,6 +20,6 @@ _/usr/local/lib/python2.7/dist-packages/codejail-0.1-py2.7.egg_
 
 Ahora es posible utilizar grade_engine:
 
-*python -m grade_engine
+*python -m grade_engine*
 
 Para indicar la dirección del servidor de xqueue (y la queue particular) hay que crear un archivo de configuración o modificar el archivo json por defecto. grade_engine intentará conectarse a la queue, y si lo logra, lo hará cada un segundo. Si encuentra una tarea que calificar, califica.
