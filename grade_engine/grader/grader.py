@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CUIDADO CON EL MENSAJE EN HTML - ya esta solucionado con ET
 # Construir una factoria para los graders
 # Aun Exec y SameOutput corren en modo no seguro (instalar codeJail)
@@ -11,8 +12,13 @@ from simple_timer import *
 #aun probando sintaxchecker
 from syntax_checker import SyntaxChecker as parser
 #instalado en /usr/local/lib/python2.7/dist-packages/codejail-0.1-py2.7.egg
-import codejail.jail_code
+#import codejail.jail_code
 #import jailcode.jailcode.safe_exec
+
+# For UnSafeGrader
+import sys
+import StringIO
+import contextlib
 
 class BaseGrader(object):
 	"""
@@ -72,38 +78,87 @@ class UnsafeExecGrader(BaseGrader):
 	     parser: conjunto lexico y sintactico permitido.
 	"""
 	def __init__(self, grader_name):
-		super(ExecGrader, self).__init__(grader_name)
+		super(UnsafeExecGrader, self).__init__(grader_name)
+
+	@contextlib.contextmanager
+	def stdoutIO(self, stdout=None):
+		old = sys.stdout
+		if stdout is None:
+			stdout = StringIO.StringIO()
+		sys.stdout = stdout
+		yield stdout
+		sys.stdout = old
 	
-	def grade(self, student_code, staff_code="", score=1, test=""):
+
+	def grade(self, python_mode="", student_code="", staff_code="", eval_functions="",score=1, test=""):
 
 		try:
 			# setting a timer for a time slice
 			# for instance is set to 2 seconds
-			timer = SimpleTimer(2)
-			timer.start()
+#			timer = SimpleTimer(2)
+#			timer.start()
+
 			# checking if student's code is in python's allowed syntax
 			# for now there is only one python's allowed syntax set
-			parser().check(student_code)
-			# executing the student's code
-			exec student_code
-			# cancel the timer
-			timer.cancel()
-			# setting answer
-			msg = "<p>Buen trabajo!</p>"
-			self.set_answer(True, score, msg)
-			return True		
+
+			# Obteniendo modo de evaluación del parser sintáctico a partir del payload.
+			mode = self.settingPythonMode(python_mode)
+			# Creando parser en base al modo
+			graderParser = parser(mode)
+			# Ejecutando parser sintáctico. Liberará una excepción en caso de que el código
+			# no cumpla con los requisitos establecidos por el profesor.
+			graderParser.check(student_code)
 			
+			#	msg = "<p>No has definido la funcion: </p>"
+			#	flag = False
+			#	self.set_answer(flag, score, msg)
+			#	return True
+			
+			# executing the student's code
+#			print student_code
+			staff_code = self.createCodeForEvaluation(staff_code, eval_functions)
+			student_code = self.createCodeForEvaluation(student_code, eval_functions)
+			
+			print "Ejecutando student:\n",student_code
+			with self.stdoutIO() as s:
+				exec student_code
+			student_result = s.getvalue()
+			print "Resultado student:\n",student_result
+			print "Ejecutando staff:\n",staff_code
+			with self.stdoutIO() as s:
+				exec staff_code
+			staff_result = s.getvalue()
+			print "Resultado staff:\n",staff_result
+
+			# cancel the timer
+#			timer.cancel()
+
+			if student_result == staff_result:
+				msg = "<p>Buen trabajo!</p>"
+				flag = True
+
+			else:
+				msg = "<p>Tu resultado es incorrecto</p>"
+				flag = False
+
+			# setting answer
+			self.set_answer(flag, score, msg)
+			return True		
+		
+		# Excepción entregada por parser. "e" corresponde al mensaje entregado por el parse en función
+		# del error sintáctico encontrado.
 		except SyntaxError as e:
-			timer.cancel()
-			msg = "<p>Ocurrio un error lexico o sintactico en tu codigo. Revisalo en busca de errores.</p>"
+			#timer.cancel()
+			msg = "<p>Ocurrio un error lexico o sintactico en tu codigo. "+str(e)+" </p>"
 			self.set_answer(False, 0, msg)
 			return False
 		except TimeOut as e:
-			timer.cancel()
+			#timer.cancel()
 			msg = "<p>Se a alcanzado el <b>limite de tiempo permitido</b> para ejecion. Revisa el codigo en busca de posibles errores.</p>"
 			self.set_answer(False, 0, msg)
 			return False
-		except:
+		except Exception as e:
+			print e
 			msg = "<p><b>Ocurrio un error inesperado</b>. Vuelve a cargar la pagina o intentalo mas tarde</p>"
 			self.set_answer(False, 0, msg)
 			return False
@@ -113,6 +168,48 @@ class UnsafeExecGrader(BaseGrader):
 		# 	#self.set_answer(False, 0, msg)
 		# 	# change to false
 		# 	#return True
+
+	#	Input:
+	#		code: Código fuente del programa
+	#		eval_functions: Funciones/valores a evaluar
+	#	Output: Código fuente resultante a ser ejecutado por Grader
+	#
+	#	Crea código a ser ejecutado por grader a partir del código fuente inicial
+	#	agregando print por pantalla para cada una de las funciones y valores entregados.
+	#
+	def createCodeForEvaluation(self, code, eval_functions):
+		code = code + "\n"
+		i=0;
+		for eval_function in eval_functions:
+			code = code + "output"+str(i)+" = "+eval_function.strip()+"\n"+"print output"+str(i)+"\n"
+			i = i+1
+		return code;
+	
+	#	Input:
+	#		mode: Modo en el que debe trabajar el parser
+	#	Output:	Valor entendible por el parser para evaluar el código a nivel sintáctico.
+	#	
+	#	A partir de los valores ingresados en el payload, transforma estos a un valor entendible
+	#	por el parser sintáctico.
+	#
+	def settingPythonMode(self, mode):
+		if (mode == "calculadora"):
+			python_mode = parser.CALCULATOR_MODE
+		elif (mode == "for"):
+			python_mode = parser.FOR_MODE
+		elif (mode == "while-listas"):
+			python_mode = parser.WHILE_LISTS_MODE
+		elif (mode == "definicion-funciones"):
+			python_mode = parser.DEF_FUNCTION_MODE
+		elif (mode == "estructuras-complejas"):
+			python_mode = parser.COMPLEX_STRUCTURES_MODE
+		elif (mode == "full"):
+			python_mode = parser.FULL_MODE
+		else:
+			python_mode = parser.FULL_MODE
+		
+		return python_mode
+
 
 class SafeExecGrader(BaseGrader):
 	"""  """

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import threading
 # requiere instalar request.py (pip - easy_install)
 import requests
@@ -7,6 +8,7 @@ import urls
 import json
 import time
 import grader.grader as grader
+import xmltodict
 
 result_template = {
 					"xqueue_header": None, 
@@ -90,7 +92,7 @@ class Client(threading.Thread):
 				self.log.error("xqueue status code: {0}\n {1}".format(status_code, submission))
 				raise ClientError(submission)
 			submission = self.parser.parse_submission(submission)
-
+			print submission
 			return submission
 
 	def grade(self, submission):
@@ -99,8 +101,19 @@ class Client(threading.Thread):
 		"""
 
 		self.log.debug("gradding a submission...")
-		g = grader.SafeExecGrader("SafeExecGrader")
-		g.grade(submission.get_student_response())
+		g = grader.UnsafeExecGrader("SafeExecGrader")
+		payload = submission.get_grader_payload()
+		student_code = submission.get_student_response()
+		staff_code = payload["answer_code"]
+		python_mode = payload["python_mode"]
+		#g.grade(submission.get_student_response())
+
+		# Funciones/valores a evaluar. Deben estar separados por ";" por cada uno de los valores 
+		# en el campo eval_function del payload
+		evaluation_functions = payload["eval_function"].split(";")
+		# Evaluando código del estudiante				
+		g.grade(python_mode, student_code, staff_code, evaluation_functions)
+		
 		answer = result_template
 		answer["xqueue_header"] = submission.header
 		answer["xqueue_body"] = g.get_answer()
@@ -280,3 +293,23 @@ class SubmissionError(ClientError):
 	def __init__(self, msg):
 		super(SubmissionError, self).__init__(msg)
 		
+class PayloadParser:
+	# Delimitador for parsing payload code
+	delimiter = "$_delimiter"
+	
+	# Constructor
+	def __init__(self, payload):
+		self.payload = payload
+
+	# Setting payload into self
+	def set_payload(self, payload):
+		self.payload = payload
+
+	# Getting payload from self
+	def get_payload(self):
+		return self.payload
+	
+	# Parsing payload JSON code from self content
+	def parse_payload(self):
+		fields = json.loads(self.payload)
+		print "Payload tiene el campo answer_code: ",fields.has_key("answer_code")

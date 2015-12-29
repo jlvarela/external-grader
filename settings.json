@@ -1,7 +1,7 @@
 {
     "QUEUES": {
         "my_queue_name": {
-            "SERVER_URL": "http://158.170.35.124:4569",
+            "SERVER_URL": "http://192.168.33.10:18040",
             "DJANGO_AUTH": {
                 "username": "lms",
                 "password": "password"
